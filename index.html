@@ -327,24 +327,28 @@ function toggleLang(btn) {
 }
 
 function startApp() {
-  const key = document.getElementById('api-key').value.trim();
-  if (!key || !key.startsWith('AIza')) {
-    alert('Por favor ingresa tu clave Gemini válida (empieza con AIza...)');
+  const raw = document.getElementById('api-key').value;
+  const key = raw.replace(/\s+/g,'').trim(); // remove all spaces/newlines
+
+  if (!key) {
+    alert('Por favor ingresa tu clave Gemini API.\nLa obtienes gratis en aistudio.google.com');
     return;
   }
   if (activeLangs.length === 0) {
     alert('Selecciona al menos un idioma');
     return;
   }
+
   apiKey = key;
-  localStorage.setItem('ale_key', btoa(key));
+  try { localStorage.setItem('ale_key', btoa(key)); } catch(e){}
   localStorage.setItem('ale_score', '0');
 
   document.getElementById('setup').style.display = 'none';
-  document.getElementById('app').style.display = 'flex';
+  const appEl = document.getElementById('app');
+  appEl.style.display = 'flex';
 
   buildLangSelector();
-  setTimeout(() => callAle('Hello Ale! I want to start practicing English with you.', true), 600);
+  setTimeout(() => callAle('Hello Ale! I want to start practicing English with you.', true), 800);
 }
 
 function resetApp() {
