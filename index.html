@@ -116,6 +116,12 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .listen-live{font-size:1rem;color:var(--text);text-align:center;max-width:280px;min-height:1.8rem;font-style:italic;padding:0 1rem}
 .listen-stop{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);border-radius:22px;padding:.7rem 2rem;color:var(--red);font-size:.875rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif}
 
+
+.speed-bar{display:flex;align-items:center;gap:8px;padding:6px 0;margin-bottom:4px;justify-content:center}
+.speed-label{font-size:.72rem;color:var(--text2);min-width:60px;text-align:center}
+.speed-slider{-webkit-appearance:none;appearance:none;width:140px;height:4px;border-radius:2px;background:var(--border);outline:none;cursor:pointer}
+.speed-slider::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent2);cursor:pointer}
+
 /* SPEAKING INDICATOR */
 .speaking-bar{display:flex;gap:3px;align-items:center;height:14px}
 .speaking-bar span{display:block;width:3px;background:var(--accent2);border-radius:2px;animation:bar .8s ease infinite alternate}
@@ -188,7 +194,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   </div>
   <p class="listen-lang-lbl" id="listen-lang-lbl">Escuchando en Español...</p>
   <p class="listen-live" id="listen-live">Habla ahora...</p>
-  <button class="listen-stop" onclick="stopListening()">◼ Parar</button>
+  <p style="font-size:.72rem;color:var(--text3);text-align:center">Se para solo tras 5 segundos de silencio</p>
+  <button class="listen-stop" onclick="stopListening()">◼ Parar ahora</button>
 </div>
 
 <!-- APP -->
@@ -202,6 +209,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
       </p>
     </div>
     <div class="score-badge" id="score-badge">⭐ 0 pts</div>
+    <button class="settings-btn" id="speed-btn" onclick="toggleSpeedBar()" title="Speed">🐢</button>
     <button class="settings-btn" onclick="resetApp()" title="Reset">⚙️</button>
   </div>
 
@@ -215,6 +223,12 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   </div>
 
   <div class="bottom">
+    <div class="speed-bar" id="speed-bar" style="display:none">
+      <span style="font-size:.85rem">🐢</span>
+      <input type="range" class="speed-slider" id="speed-slider" min="0.5" max="1.2" step="0.1" value="0.75" oninput="updateSpeed(this.value)">
+      <span style="font-size:.85rem">🐇</span>
+      <span class="speed-label" id="speed-label">Slow</span>
+    </div>
     <div class="lang-selector" id="lang-selector"></div>
 
     <div class="commands">
@@ -251,6 +265,7 @@ let isListening = false;
 let synth = window.speechSynthesis;
 let voices = [];
 let femaleVoice = null;
+let speechRate = 0.72;
 
 const LANG_LABELS = {'es-ES':'🇪🇸 Español','fr-FR':'🇫🇷 Français','en-US':'🇬🇧 English'};
 const LANG_NAMES  = {'es-ES':'Español','fr-FR':'Français','en-US':'English'};
@@ -292,7 +307,51 @@ TOPICS (in order):
 1. Daily life: morning routine, commute, at work, evening, weekend
 2. IT workplace: describing problems, meetings, emails, support calls
 
-START: Greet warmly as Ale, introduce yourself briefly, ask about their morning.`;
+RESPONSE STYLE — CRITICAL:
+NEVER start with greetings like "Great!", "Very good!", "Excellent!", "Hola!", "Well done!" on EVERY message.
+Vary your reactions naturally — only celebrate genuinely when the student does something impressive.
+Wrong: "Great job! Now let me explain..." (every single time)
+Right: Just answer directly, then ask a follow-up.
+
+FOR TRANSLATION QUESTIONS ("¿Cómo se dice...?" / "Comment dit-on...?" / "How do you say...?"):
+Answer IMMEDIATELY and concisely — no preamble, no greeting:
+Format:
+→ [English phrase]
+/phonetics/
+Example: "[simple sentence]"
+Your turn: "[challenge]"
+
+Only add phonetics if student asks: "¿cómo se pronuncia?" / "phonetics please" / "pronunciation"
+Only give example if student asks: "un ejemplo" / "give me an example" / "example please"
+Only explain grammar if student asks: "¿por qué?" / "why?" / "explica" / "explain"
+
+CONVERSATIONAL FLOW:
+- Short answers — max 3-4 lines unless student asks for more
+- No repetition of what the student just said
+- No "As I mentioned..." or "Like I said..."
+- React like a real person in conversation, not a teacher giving a lesson
+- If student makes a small mistake mid-conversation, correct briefly inline: "(→ say: I went, not I go)" and continue
+- Save full corrections for when student specifically asks
+
+ADAPT TO STUDENT LEVEL:
+At the start, evaluate the student from their first messages:
+- Many mistakes / simple words -> speak slowly, short sentences, basic vocabulary
+- Improving -> gradually increase complexity
+- "speak slower" / "mas despacio" / "plus lentement" -> immediately use slow format
+- "faster" / "mas rapido" -> increase complexity
+
+SLOW SPEECH FORMAT (use for beginners and when asked):
+Add "..." between ideas to show natural pauses:
+Slow: "I wake up... at 7 AM. Then... I brush my teeth."
+Normal: "I wake up at 7 AM, then I brush my teeth."
+Always tell the student: "I will speak slowly for you" or "Let me slow down"
+
+SPEED COMMANDS:
+- "mas despacio" / "slower" / "plus lentement" -> use slow format + short sentences
+- "mas rapido" / "faster" -> increase pace
+- "normal" -> standard pace
+
+START: Greet as Ale, ask 2 simple questions to evaluate their level, then adapt your speed.`;
 
 // ── VOICES
 function loadVoices() {
@@ -363,6 +422,7 @@ window.addEventListener('load', () => {
   const saved = localStorage.getItem('ale_key');
   if (saved) {
     try { document.getElementById('api-key').value = atob(saved); } catch(e){}
+  const savedSpeed = localStorage.getItem('ale_speed'); if(savedSpeed){ speechRate = parseFloat(savedSpeed); const sl = document.getElementById('speed-slider'); if(sl) sl.value = savedSpeed; }
   }
 });
 
@@ -402,7 +462,7 @@ function startListening() {
 
   recognition = new SR();
   recognition.lang = currentLang;
-  recognition.continuous = false;
+  recognition.continuous = true;
   recognition.interimResults = true;
 
   const overlay = document.getElementById('listening');
@@ -417,24 +477,35 @@ function startListening() {
   isListening = true;
 
   let finalText = '';
+  let silenceTimer = null;
+
+  function resetSilenceTimer() {
+    if (silenceTimer) clearTimeout(silenceTimer);
+    silenceTimer = setTimeout(() => {
+      try { recognition.stop(); } catch(e){}
+    }, 5000);
+  }
 
   recognition.onresult = e => {
     let interim = '';
-    finalText = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
-      if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+      if (e.results[i].isFinal) finalText += e.results[i][0].transcript + ' ';
       else interim += e.results[i][0].transcript;
     }
-    liveText.textContent = finalText || interim || '...';
+    liveText.textContent = finalText.trim() || interim || '...';
+    resetSilenceTimer();
   };
 
   recognition.onend = () => {
+    if (silenceTimer) clearTimeout(silenceTimer);
     stopListening();
     if (finalText.trim()) {
       document.getElementById('text-input').value = finalText.trim();
       sendMessage();
     }
   };
+
+  resetSilenceTimer();
 
   recognition.onerror = e => {
     stopListening();
@@ -627,7 +698,7 @@ function speakTextDirect(text, onEnd) {
 
   const utt = new SpeechSynthesisUtterance(clean);
   utt.lang = 'en-US';
-  utt.rate = 0.88;
+  utt.rate = speechRate;
   utt.pitch = 1.1;
   utt.volume = 1;
 
@@ -639,6 +710,20 @@ function speakTextDirect(text, onEnd) {
 }
 
 // ── HELPERS
+
+function toggleSpeedBar() {
+  const bar = document.getElementById('speed-bar');
+  const visible = bar.style.display !== 'none';
+  bar.style.display = visible ? 'none' : 'flex';
+}
+
+function updateSpeed(val) {
+  speechRate = parseFloat(val);
+  const labels = {0.5:'Very slow', 0.6:'Very slow', 0.7:'Slow', 0.75:'Slow', 0.8:'Normal', 0.9:'Normal', 1.0:'Fast', 1.1:'Fast', 1.2:'Very fast'};
+  document.getElementById('speed-label').textContent = labels[val] || 'Normal';
+  localStorage.setItem('ale_speed', val);
+}
+
 function setStatus(text, thinking) {
   const el = document.getElementById('header-status');
   el.innerHTML = thinking
